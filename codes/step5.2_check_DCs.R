@@ -1,41 +1,65 @@
 # Step 5.2: check DC subclusters
 
-setwd("/home/LiuLab/zzdx/data/singlecell/bgi/wangpengju/xuanyujing/results/3-celltype/DCs")
+load_required_packages <- function(pkgs) {
+  missing_pkgs <- pkgs[!vapply(pkgs, requireNamespace, logical(1), quietly = TRUE)]
+  if (length(missing_pkgs) > 0) {
+    stop("Missing required packages: ", paste(missing_pkgs, collapse = ", "))
+  }
+  invisible(lapply(pkgs, function(pkg) {
+    suppressPackageStartupMessages(library(pkg, character.only = TRUE))
+  }))
+}
 
-# Load the required R packages here.
-library(Seurat)
-library(tidyverse)
-library(ggplot2)
-library(sctransform) # https://satijalab.org/seurat/articles/sctransform_vignette.html
-library(glmGamPoi)
-library(DoubletFinder)
-library(patchwork)
-library(clusterProfiler)
-require(org.Hs.eg.db)
-# library(monocle3)
-# library(garnett)
-library(harmony)
-library(celldex)
-library(RColorBrewer)
-library(patchwork)
-library(future)
-library(parallel)
+load_required_packages(c(
+  "Seurat", "tidyverse", "ggplot2", "sctransform", "glmGamPoi", "DoubletFinder", "patchwork",
+  "clusterProfiler", "org.Hs.eg.db", "harmony", "celldex", "RColorBrewer", "future", "parallel"
+))
 
-# Load custome functions to plot.
 source("~/software/functions/custom_seurat_functions.R")
 source("~/software/functions/PropPlot.R")
 source("~/software/functions/SubClusterPropPlot.R")
-# Convert human gene symbols to mouse gene symbols.
-source("~/software/functions/convertHumanGeneList.R") 
+source("~/software/functions/convertHumanGeneList.R")
 
-# If error pops up, uncomment corresponding options here.
-options(future.globals.maxSize= 891289600)
-options(future.seed=TRUE)
+options(future.globals.maxSize = 891289600)
+options(future.seed = TRUE)
 
-sce <- readRDS("DCs.sce.sub.harmony.Rds")
+dotplot_theme <- theme(
+  axis.text.x = element_text(angle = 45, hjust = 1.2, vjust = 1.1, size = 8),
+  strip.text  = element_text(size = 8)
+)
 
+save_dotplot <- function(object, genes, filename, assay = "RNA", width = 14, height = 10, title = NULL) {
+  plot <- DotPlot(object, features = genes, assay = assay) + dotplot_theme
+  if (!is.null(title)) plot <- plot + ggtitle(title)
+  ggsave(filename, plot = plot, width = width, height = height)
+  plot
+}
 
-#### For mouse DC subcluster
+apply_cluster_labels <- function(obj, mapping, column) {
+  obj[[column]] <- "NA"
+  for (i in seq_len(nrow(mapping))) {
+    obj@meta.data[obj$seurat_clusters == mapping$ClusterID[i], column] <- mapping[[column]][i]
+  }
+  obj
+}
+
+write_proportion_tables <- function(obj, column, prefix) {
+  cltyPerIdent <- table(obj@meta.data[[column]], obj@meta.data$orig.ident)
+  write.table(cltyPerIdent, paste0(prefix, "_", column, "_per_orig.ident.tsv"), quote = FALSE, sep = "\t", row.names = TRUE, col.names = NA)
+
+  cltyPerGroup <- table(obj@meta.data[[column]], obj@meta.data$group)
+  write.table(cltyPerGroup, paste0(prefix, "_", column, "_per_group.tsv"), quote = FALSE, sep = "\t", row.names = TRUE, col.names = NA)
+}
+
+working_dir <- "/home/LiuLab/zzdx/data/singlecell/bgi/wangpengju/xuanyujing/results/3-celltype/DCs"
+if (dir.exists(working_dir)) setwd(working_dir)
+
+prefix <- "DCs"
+dataset_path <- "DCs.sce.sub.harmony.Rds"
+if (!file.exists(dataset_path)) stop(dataset_path, " not found")
+
+sce <- readRDS(dataset_path)
+
 # DC subtype marker genes (mouse; from your Excel)
 genes_dc <- list(
   DC_cDC1   = c("Xcr1", "Wdfy4", "Clec9a"),
@@ -44,95 +68,35 @@ genes_dc <- list(
   DC_pDC    = c("Irt7", "Spib", "Bst2", "Siglech", "Ccr9", "CD209a", "Upb1", "Rnd3", "Runx2")
 )
 
-
-p_all_markers <- DotPlot(sce, features = genes_dc, assay = "RNA") +
-  theme(
-    axis.text.x = element_text(angle = 45, hjust = 1.2, vjust = 1.1, size = 8),
-    strip.text  = element_text(size = 8)
-  )
+p_all_markers <- DotPlot(sce, features = genes_dc, assay = "RNA") + dotplot_theme
 
 p_all_markers
-ggsave("check_all_cell_markers_for_DCs.pdf", plot = p_all_markers, width = 14, height = 10)
+save_dotplot(sce, genes_dc, "check_all_cell_markers_for_DCs.pdf", width = 14, height = 10)
 
+subcelltype <- data.frame(
+  ClusterID = 0:12,
+  subcelltype = c(
+    "cDC2", "moDC", "cDC1", "pDC", "mregDC", "moDC", "cDC2", "Unknown", "cDC1", "cDC2", "mregDC", "pDC", "pDC"
+  )
+)
 
-setwd("/home/LiuLab/zzdx/data/singlecell/bgi/wangpengju/xuanyujing/results/3-celltype/DCs")
-sce.sub <- readRDS("DCs.sce.sub.harmony.Rds")
-if(T) {
-  table(sce.sub@active.ident)
-  
-  subcelltype=data.frame(ClusterID=0:12, subcelltype='na')
-  
-  subcelltype[subcelltype$ClusterID %in% c( 0),2]='cDC2'
-  subcelltype[subcelltype$ClusterID %in% c( 1),2]='moDC'
-  subcelltype[subcelltype$ClusterID %in% c( 2),2]='cDC1'
-  subcelltype[subcelltype$ClusterID %in% c( 3),2]='pDC'
-  subcelltype[subcelltype$ClusterID %in% c( 4),2]='mregDC'
-  subcelltype[subcelltype$ClusterID %in% c( 5),2]='moDC'
-  subcelltype[subcelltype$ClusterID %in% c( 6),2]='cDC2'
-  subcelltype[subcelltype$ClusterID %in% c( 7),2]='Unknown'
-  subcelltype[subcelltype$ClusterID %in% c( 8),2]='cDC1'
-  subcelltype[subcelltype$ClusterID %in% c( 9),2]='cDC2'
-  subcelltype[subcelltype$ClusterID %in% c(10),2]='mregDC'
-  subcelltype[subcelltype$ClusterID %in% c(11),2]='pDC'
-  subcelltype[subcelltype$ClusterID %in% c(12),2]='pDC'
+sce <- apply_cluster_labels(sce, subcelltype, "subcelltype")
+write_proportion_tables(sce, "subcelltype", prefix)
+Idents(sce) <- sce$subcelltype
 
-  
-  head(subcelltype)
-  subcelltype 
-  table(subcelltype$subcelltype)
-  sce.sub@meta.data$subcelltype = "NA"
-  for(i in 1:nrow(subcelltype)){
-    sce.sub@meta.data[which(sce.sub@meta.data$seurat_clusters == subcelltype$ClusterID[i]),'subcelltype'] <- subcelltype$subcelltype[i]}
-  table(sce.sub@meta.data$subcelltype)
-  
-  cltyPerIdent <- table(sce.sub@meta.data$subcelltype, sce.sub@meta.data$orig.ident)
-  write.table(cltyPerIdent, "subcelltype_per_orig.ident.tsv", quote = F, sep = "\t", row.names = T, col.names = NA)
-  
-  cltyPerGroup <- table(sce.sub@meta.data$subcelltype, sce.sub@meta.data$group)
-  write.table(cltyPerGroup, "subcelltype_per_group.tsv", quote = F, sep = "\t", row.names = T, col.names = NA)
-  
-  Idents(sce.sub) <- sce.sub$subcelltype
-}
+maincelltype <- data.frame(
+  ClusterID = 0:12,
+  maincelltype = c(
+    "DCs", "DCs", "DCs", "DCs", "DCs", "DCs", "DCs", "Unknown", "DCs", "DCs", "DCs", "DCs", "DCs"
+  )
+)
 
-if(T) {
-  table(sce.sub@active.ident)
-  
-  maincelltype=data.frame(ClusterID=0:15, maincelltype='na')
-  
-  maincelltype[maincelltype$ClusterID %in% c( 0),2]='DCs'
-  maincelltype[maincelltype$ClusterID %in% c( 1),2]='DCs'
-  maincelltype[maincelltype$ClusterID %in% c( 2),2]='DCs'
-  maincelltype[maincelltype$ClusterID %in% c( 3),2]='DCs'
-  maincelltype[maincelltype$ClusterID %in% c( 4),2]='DCs'
-  maincelltype[maincelltype$ClusterID %in% c( 5),2]='DCs'
-  maincelltype[maincelltype$ClusterID %in% c( 6),2]='DCs'
-  maincelltype[maincelltype$ClusterID %in% c( 7),2]='Unknown'
-  maincelltype[maincelltype$ClusterID %in% c( 8),2]='DCs'
-  maincelltype[maincelltype$ClusterID %in% c( 9),2]='DCs'
-  maincelltype[maincelltype$ClusterID %in% c(10),2]='DCs'
-  maincelltype[maincelltype$ClusterID %in% c(11),2]='DCs'
-  maincelltype[maincelltype$ClusterID %in% c(12),2]='DCs'
+sce <- apply_cluster_labels(sce, maincelltype, "maincelltype")
+write_proportion_tables(sce, "maincelltype", prefix)
+Idents(sce) <- sce$maincelltype
 
-  
-  
-  head(maincelltype)
-  maincelltype 
-  table(maincelltype$maincelltype)
-  sce.sub@meta.data$maincelltype = "NA"
-  for(i in 1:nrow(maincelltype)){
-    sce.sub@meta.data[which(sce.sub@meta.data$seurat_clusters == maincelltype$ClusterID[i]),'maincelltype'] <- maincelltype$maincelltype[i]}
-  table(sce.sub@meta.data$maincelltype)
-  
-  cltyPerIdent <- table(sce.sub@meta.data$maincelltype, sce.sub@meta.data$orig.ident)
-  write.table(cltyPerIdent, "maincelltype_per_orig.ident.tsv", quote = F, sep = "\t", row.names = T, col.names = NA)
-  
-  cltyPerGroup <- table(sce.sub@meta.data$maincelltype, sce.sub@meta.data$group)
-  write.table(cltyPerGroup, "maincelltype_per_group.tsv", quote = F, sep = "\t", row.names = T, col.names = NA)
-  
-  Idents(sce.sub) <- sce.sub$maincelltype
-}
-sce.dc <- sce.sub
+saveRDS(sce, "sce.DCs_w_correction.Rds")
 
-table(sce.dc$group,sce.dc$maincelltype)
-
-saveRDS(sce.dc, "sce.DCs_w_correction.Rds")
+# Proportion tables for quick review
+table(sce$group, sce$maincelltype)
+table(sce$group, sce$subcelltype)

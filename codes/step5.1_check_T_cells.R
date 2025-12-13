@@ -2,35 +2,36 @@
 
 setwd("/home/LiuLab/zzdx/data/singlecell/bgi/wangpengju/xuanyujing/results/3-celltype/Tcells")
 
-# Load the required R packages here.
-library(Seurat)
-library(tidyverse)
-library(ggplot2)
-library(sctransform) # https://satijalab.org/seurat/articles/sctransform_vignette.html
-library(glmGamPoi)
-library(DoubletFinder)
-library(patchwork)
-library(clusterProfiler)
-require(org.Hs.eg.db)
-# library(monocle3)
-# library(garnett)
-library(harmony)
-library(celldex)
-library(RColorBrewer)
-library(patchwork)
-library(future)
-library(parallel)
+load_required_packages <- function(pkgs) {
+  missing_pkgs <- pkgs[!vapply(pkgs, requireNamespace, logical(1), quietly = TRUE)]
+  if (length(missing_pkgs) > 0) {
+    stop("Missing required packages: ", paste(missing_pkgs, collapse = ", "))
+  }
+  invisible(lapply(pkgs, function(pkg) {
+    suppressPackageStartupMessages(library(pkg, character.only = TRUE))
+  }))
+}
 
-# Load custome functions to plot.
+load_required_packages(c(
+  "Seurat", "tidyverse", "ggplot2", "sctransform", "glmGamPoi", "DoubletFinder",
+  "patchwork", "clusterProfiler", "org.Hs.eg.db", "harmony", "celldex",
+  "RColorBrewer", "future", "parallel"
+))
+
+# Load custom functions to plot.
 source("~/software/functions/custom_seurat_functions.R")
 source("~/software/functions/PropPlot.R")
 source("~/software/functions/SubClusterPropPlot.R")
 # Convert human gene symbols to mouse gene symbols.
-source("~/software/functions/convertHumanGeneList.R") 
+source("~/software/functions/convertHumanGeneList.R")
 
 # If error pops up, uncomment corresponding options here.
 options(future.globals.maxSize= 891289600)
 options(future.seed=TRUE)
+
+if (!file.exists("Tcells.sce.sub.harmony.Rds")) {
+  stop("Tcells.sce.sub.harmony.Rds not found in working directory")
+}
 
 sce <- readRDS("Tcells.sce.sub.harmony.Rds")
 table(sce$group, sce$seurat_clusters)
@@ -39,10 +40,20 @@ table(sce$group, sce$seurat_clusters)
 Idents(sce) <- sce$group
 sce$group <- factor(sce$group, levels = c("PBS", "DD_mGE", "DD_mIL12", "DD_mGE12", "TD_mGE12"))
 
-
 # Verify the new levels
 table(sce$group, sce$seurat_clusters)
 Idents(sce) <- sce$seurat_clusters
+
+dotplot_theme <- theme(
+  axis.text.x = element_text(angle = 45, hjust = 1.2, vjust = 1.1, size = 8),
+  strip.text  = element_text(size = 8)
+)
+
+save_dotplot <- function(object, genes, filename, width = 12, height = 10) {
+  plot <- DotPlot(object, features = genes, assay = "RNA") + dotplot_theme
+  ggsave(filename, plot = plot, width = width, height = height)
+  plot
+}
 
 #### For mouse T cell subcluster
 genes_to_check <- list(
@@ -74,11 +85,7 @@ genes_to_check <- list(
   `早期记忆T` = c("Zeb2")
 )
 
-p_all_markers <- DotPlot(sce, features = genes_to_check, assay = "RNA") +
-  theme(
-    axis.text.x = element_text(angle = 45, hjust = 1.2, vjust = 1.1, size = 8),
-    strip.text  = element_text(size = 8)
-  )
+p_all_markers <- DotPlot(sce, features = genes_to_check, assay = "RNA") + dotplot_theme
 
 p_all_markers
 ggsave("check_all_cell_markers_for_T.pdf", plot = p_all_markers, width = 28, height = 10)
@@ -88,26 +95,16 @@ ggsave("check_all_cell_markers_for_T.pdf", plot = p_all_markers, width = 28, hei
 genes_to_check <- c("IL7R", "IL32", "CD3D","CD3G","CD3E","CD2","CD4","CD8A")
 genes_to_check <- convertHumanGeneList(genes_to_check)
 
-p <- DotPlot(sce, features = genes_to_check, assay = "RNA") +
-  theme(
-    axis.text.x = element_text(angle = 45, hjust = 1.2, vjust = 1.1, size = 8),
-    strip.text  = element_text(size = 8)
-  )
+p <- save_dotplot(sce, genes_to_check, "Tcells_featurePlot.pdf")
 p
-ggsave(plot=p, filename="Tcells_featurePlot.pdf",device="pdf",width = 12,height = 10)
 
 
 
 genes_to_check <- c('Sell', 'Il7r', 'Ccr7', 'Klf2', 'S1pr1', 'Tcf7',
                     'Gzmb', 'Prf1', 'Nkg7', 'Ifng', 'Il4', 'Il17a', 'Foxp3', 'Bcl6', 'Cxcr5')
 
-p <- DotPlot(sce, features = genes_to_check, assay = "RNA") +
-  theme(
-    axis.text.x = element_text(angle = 45, hjust = 1.2, vjust = 1.1, size = 8),
-    strip.text  = element_text(size = 8)
-  )
+p <- save_dotplot(sce, genes_to_check, "naive_central_memory_like_Tcells_featurePlot.pdf")
 p
-ggsave(plot=p, filename="naive_central_memory_like_Tcells_featurePlot.pdf",device="pdf",width = 12,height = 10)
 
 
 

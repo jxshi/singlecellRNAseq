@@ -1,176 +1,133 @@
-############### Step 8.4 Assign B cell newsubtype. #####################
+# Step 8.4: assign B-cell subtypes
 
-setwd("/home/LiuLab/zzdx/data/singlecell/bgi/wangpengju/xuanyujing/results/4-modifiedcelltype/Bcells")
-sce.sub <- readRDS("Bcells.sce.sub.harmony.Rds")
-
-if(T) {
-  table(sce.sub@active.ident)
-  
-  newsubcelltype=data.frame(ClusterID=0:9, newsubcelltype='na')
-  
-  newsubcelltype[newsubcelltype$ClusterID %in% c( 0),2]='IgD+ mature B'
-  newsubcelltype[newsubcelltype$ClusterID %in% c( 1),2]='GC B'
-  newsubcelltype[newsubcelltype$ClusterID %in% c( 2),2]='Inflammatory B'
-  newsubcelltype[newsubcelltype$ClusterID %in% c( 3),2]='AP-GC B'
-  newsubcelltype[newsubcelltype$ClusterID %in% c( 4),2]='Proliferating GC B'
-  newsubcelltype[newsubcelltype$ClusterID %in% c( 5),2]='IgM+ memory B'
-  newsubcelltype[newsubcelltype$ClusterID %in% c( 6),2]='Early activated B'
-  newsubcelltype[newsubcelltype$ClusterID %in% c( 7),2]='GC B'
-  newsubcelltype[newsubcelltype$ClusterID %in% c( 8),2]='IgM+ mature B'
-  newsubcelltype[newsubcelltype$ClusterID %in% c( 9),2]='Unknown'
-
-  
-  head(newsubcelltype)
-  newsubcelltype 
-  table(newsubcelltype$newsubcelltype)
-  sce.sub@meta.data$newsubcelltype = "NA"
-  for(i in 1:nrow(newsubcelltype)){
-    sce.sub@meta.data[which(sce.sub@meta.data$seurat_clusters == newsubcelltype$ClusterID[i]),'newsubcelltype'] <- newsubcelltype$newsubcelltype[i]}
-  table(sce.sub@meta.data$newsubcelltype)
-  
-  cltyPerIdent <- table(sce.sub@meta.data$newsubcelltype, sce.sub@meta.data$orig.ident)
-  write.table(cltyPerIdent, "newsubcelltype_per_orig.ident.tsv", quote = F, sep = "\t", row.names = T, col.names = NA)
-  
-  cltyPerGroup <- table(sce.sub@meta.data$newsubcelltype, sce.sub@meta.data$group)
-  write.table(cltyPerGroup, "newsubcelltype_per_group.tsv", quote = F, sep = "\t", row.names = T, col.names = NA)
-  
-  Idents(sce.sub) <- sce.sub$newsubcelltype
+load_required_packages <- function(pkgs) {
+  missing_pkgs <- pkgs[!vapply(pkgs, requireNamespace, logical(1), quietly = TRUE)]
+  if (length(missing_pkgs) > 0) {
+    stop("Missing required packages: ", paste(missing_pkgs, collapse = ", "))
+  }
+  invisible(lapply(pkgs, function(pkg) {
+    suppressPackageStartupMessages(library(pkg, character.only = TRUE))
+  }))
 }
 
-if(T) {
-  table(sce.sub@active.ident)
-  
-  maincelltype=data.frame(ClusterID=0:9, maincelltype='na')
-  
-  maincelltype[maincelltype$ClusterID %in% c( 0),2]='B cells'
-  maincelltype[maincelltype$ClusterID %in% c( 1),2]='B cells'
-  maincelltype[maincelltype$ClusterID %in% c( 2),2]='B cells'
-  maincelltype[maincelltype$ClusterID %in% c( 3),2]='B cells'
-  maincelltype[maincelltype$ClusterID %in% c( 4),2]='B cells'
-  maincelltype[maincelltype$ClusterID %in% c( 5),2]='B cells'
-  maincelltype[maincelltype$ClusterID %in% c( 6),2]='B cells'
-  maincelltype[maincelltype$ClusterID %in% c( 7),2]='B cells'
-  maincelltype[maincelltype$ClusterID %in% c( 8),2]='B cells'
-  maincelltype[maincelltype$ClusterID %in% c( 9),2]='Unknown'
+load_required_packages(c("Seurat", "dplyr", "ggplot2", "ggsci"))
 
-  
-  head(maincelltype)
-  maincelltype 
-  table(maincelltype$maincelltype)
-  sce.sub@meta.data$maincelltype = "NA"
-  for(i in 1:nrow(maincelltype)){
-    sce.sub@meta.data[which(sce.sub@meta.data$seurat_clusters == maincelltype$ClusterID[i]),'maincelltype'] <- maincelltype$maincelltype[i]}
-  table(sce.sub@meta.data$maincelltype)
-  
-  cltyPerIdent <- table(sce.sub@meta.data$maincelltype, sce.sub@meta.data$orig.ident)
-  write.table(cltyPerIdent, "maincelltype_per_orig.ident.tsv", quote = F, sep = "\t", row.names = T, col.names = NA)
-  
-  cltyPerGroup <- table(sce.sub@meta.data$maincelltype, sce.sub@meta.data$group)
-  write.table(cltyPerGroup, "maincelltype_per_group.tsv", quote = F, sep = "\t", row.names = T, col.names = NA)
-  
-  Idents(sce.sub) <- sce.sub$maincelltype
-}
-sce.b <- sce.sub
-
-table(sce.b$group,sce.b$maincelltype)
-
-saveRDS(sce.b, "sce.Bcells_w_correction.Rds")
-
-#################################### Plot Figures for B cells ###############################################
-library(ggsci)
 source("~/software/functions/groupbarcharts.R")
 source("~/software/functions/groupbarchartssubcluster.R")
 source("~/software/functions/PropPlot.R")
 source("~/software/functions/custom_seurat_functions.R")
-default_colors <- pal_nejm(palette = c("default"), alpha=1)(8)
-extra_colors <- pal_aaas()(8)
-combined_colors <- c(default_colors, extra_colors)
-combined_colors
 
-combined_colors <- c("#BC3C29FF", "#0072B5FF", "#E18727FF", "#008B45FF", "#5F559BFF", "#6F99ADFF","#A20056FF",  "#FF5733",
-                     "#EE4C97FF", "#3B4992FF", "#008280FF","#631879FF", "#C70039","#FFDC91FF")
+assert_file <- function(path) {
+  if (!file.exists(path)) stop(path, " not found")
+}
 
-combined_colors <- c("#BC3C29", "#0072B5", "#E18727", "#008B45", "#5F559B", "#6F99AD", "#A20056", "#EE4C97", "#3B4992", "#008280", "#631879", "#C70039", "#FFDC91")
+apply_cluster_labels <- function(obj, mapping, column) {
+  obj[[column]] <- "NA"
+  for (i in seq_len(nrow(mapping))) {
+    obj@meta.data[obj$seurat_clusters == mapping$ClusterID[i], column] <- mapping[[column]][i]
+  }
+  obj
+}
 
+write_proportion_tables <- function(obj, column, prefix = column) {
+  per_sample <- table(obj@meta.data[[column]], obj@meta.data$orig.ident)
+  write.table(per_sample, paste0(prefix, "_per_orig.ident.tsv"), quote = FALSE, sep = "\t", row.names = TRUE, col.names = NA)
 
+  per_group <- table(obj@meta.data[[column]], obj@meta.data$group)
+  write.table(per_group, paste0(prefix, "_per_group.tsv"), quote = FALSE, sep = "\t", row.names = TRUE, col.names = NA)
+}
 
-setwd("/home/LiuLab/zzdx/data/singlecell/bgi/wangpengju/xuanyujing/results/4-modifiedcelltype/graphs/")
-# dir.create("BcellFigures")
+save_marker_outputs <- function(obj, markers, prefix, assay = "RNA") {
+  write.csv(markers, file = paste0(prefix, "_markers.csv"))
+  saveRDS(markers, file = paste0(prefix, "_markers.Rds"))
 
-setwd("BcellFigures/")
-# sce.b <- readRDS("~/data/singlecell/bgi/wangpengju/xuanyujing/results/4-modifiedcelltype/Bcells/sce.Bcells_w_correction.Rds")
-# sce.new <- sce.b
-Idents(sce.b) <- sce.b$newsubcelltype
-sce.new <- subset(sce.b, idents = setdiff(levels(Idents(sce.b)), c("Unknown")))
+  for (n in c(10, 6, 3)) {
+    top_markers <- markers %>% group_by(cluster) %>% slice_max(n = n, order_by = avg_log2FC)
+    heatmap <- DoHeatmap(obj, top_markers$gene, size = 3)
+    ggsave(paste0(prefix, "_DoHeatmap_top", n, ".pdf"), plot = heatmap, width = 18, height = ifelse(n == 10, 24, 12))
 
-Idents(sce.new) <- sce.new$newsubcelltype
-sce.new$subcelltype <- sce.new$newsubcelltype
+    dot <- DotPlot(obj, features = unique(top_markers$gene), assay = assay) + coord_flip()
+    ggsave(paste0(prefix, "_DotPlot_top", n, ".pdf"), plot = dot, device = "pdf", width = 18, height = ifelse(n == 10, 24, 12))
+  }
+}
 
+save_dotplot <- function(object, genes, filename, assay = "RNA", width = 10, height = 8, title = NULL) {
+  plot <- DotPlot(object, features = genes, assay = assay) + coord_flip()
+  if (!is.null(title)) plot <- plot + ggtitle(title)
+  ggsave(plot = plot, filename = filename, device = cairo_pdf, width = width, height = height)
+  plot
+}
 
-p <- DimPlot(sce.new, group.by = "maincelltype", raster = F, label = T, cols = combined_colors)
-p
+base_dir <- "/home/LiuLab/zzdx/data/singlecell/bgi/wangpengju/xuanyujing/results/4-modifiedcelltype"
+b_dir <- file.path(base_dir, "Bcells")
+setwd(b_dir)
+
+sce_path <- file.path(b_dir, "Bcells.sce.sub.harmony.Rds")
+assert_file(sce_path)
+sce_sub <- readRDS(sce_path)
+sce_sub$group <- factor(sce_sub$group, levels = c("PBS", "DD_mGE", "DD_mIL12", "DD_mGE12", "TD_mGE12"))
+
+new_labels <- data.frame(
+  ClusterID = 0:9,
+  newsubcelltype = c(
+    "IgD+ mature B", "GC B", "Inflammatory B", "AP-GC B", "Proliferating GC B",
+    "IgM+ memory B", "Early activated B", "GC B", "IgM+ mature B", "Unknown"
+  )
+)
+
+main_labels <- data.frame(
+  ClusterID = 0:9,
+  maincelltype = c(rep("B cells", 9), "Unknown")
+)
+
+sce_sub <- apply_cluster_labels(sce_sub, new_labels, "newsubcelltype")
+write_proportion_tables(sce_sub, "newsubcelltype", prefix = "newsubcelltype")
+sce_sub <- apply_cluster_labels(sce_sub, main_labels, "maincelltype")
+write_proportion_tables(sce_sub, "maincelltype", prefix = "maincelltype")
+
+sce_b <- sce_sub
+saveRDS(sce_b, file.path(base_dir, "sce.Bcells_w_correction.Rds"))
+
+combined_colors <- c(
+  "#BC3C29", "#0072B5", "#E18727", "#008B45", "#5F559B", "#6F99AD", "#A20056", "#EE4C97", "#3B4992", "#008280", "#631879", "#C70039", "#FFDC91"
+)
+
+fig_dir <- file.path(base_dir, "graphs", "BcellFigures")
+dir.create(fig_dir, showWarnings = FALSE, recursive = TRUE)
+setwd(fig_dir)
+
+Idents(sce_b) <- sce_b$newsubcelltype
+sce_plot <- subset(sce_b, idents = setdiff(levels(Idents(sce_b)), c("Unknown")))
+Idents(sce_plot) <- sce_plot$newsubcelltype
+sce_plot$subcelltype <- sce_plot$newsubcelltype
+
+p <- DimPlot(sce_plot, group.by = "maincelltype", raster = FALSE, label = TRUE, cols = combined_colors)
 ggsave("main_celltype_UMAP.pdf", plot = p, device = cairo_pdf, width = 8, height = 8)
 
-p <- DimPlot(sce.new, group.by = "group", raster = F, label = F, cols = combined_colors)
-# p <- LabelClusters(plot = p, id = "group", repel = TRUE)
-p
+p <- DimPlot(sce_plot, group.by = "group", raster = FALSE, cols = combined_colors)
 ggsave("UMAP_by_group.pdf", plot = p, device = cairo_pdf, width = 8, height = 8)
 
-
-p <- groupbarcharts(sce.new, "group")
-p
+p <- groupbarcharts(sce_plot, "group")
 ggsave("compare_maincelltype_percentage_of_each_group.pdf", plot = p, device = cairo_pdf, width = 8, height = 8)
-tmp <- table(sce.new$group,sce.new$subcelltype)
-write.table(tmp, file = "subcelltype_per_group.tsv", quote = F, col.names = NA, sep = "\t")
 
-p <- groupbarchartssubcluster(sce.new, "group")
-p
-ggsave("compare_percentage_of_celsl_in_each_group.pdf", plot = p, device = cairo_pdf, width = 10, height = 8)
+tmp <- table(sce_plot$group, sce_plot$subcelltype)
+write.table(tmp, file = "subcelltype_per_group.tsv", quote = FALSE, col.names = NA, sep = "\t")
 
-p <-  plot_integrated_clusters(sce.new, cluster_col = "subcelltype", group_col = "group")
-p
+p <- groupbarchartssubcluster(sce_plot, "group")
+ggsave("compare_percentage_of_cells_in_each_group.pdf", plot = p, device = cairo_pdf, width = 10, height = 8)
+
+p <- plot_integrated_clusters(sce_plot, cluster_col = "subcelltype", group_col = "group")
 ggsave("compare_percentage_of_subcelltype.pdf", plot = p, device = cairo_pdf, width = 8, height = 8)
 
-Idents(sce.new) <- sce.new$subcelltype
-DefaultAssay(sce.new) <- "RNA"
-if(T) {
-  # Find marker genes for each group
-  sce.markers <- FindAllMarkers(sce.new, only.pos = TRUE, min.pct = 0.25, logfc.threshold = 0.25)
-  sce.markers %>%
-    group_by(cluster) %>%
-    slice_max(n = 2, order_by = avg_log2FC)
-  
-  # DT::datatable(sce.markers)
-  
-  pro='cca'
-  write.csv(sce.markers,file = paste0(pro,"_sce.new.markers.csv"))
-  
-  saveRDS(sce.markers, file = paste0(pro,"sce.new.markers.Rds"))
-  
-  library(dplyr) 
-  top10 <- sce.markers %>% group_by(cluster) %>% top_n(10, avg_log2FC)
-  DoHeatmap(sce.new,top10$gene,size=3)
-  ggsave(filename=paste0(pro,'_sce.markers_heatmap.pdf'),width = 18,height = 24)
-  p <- DotPlot(sce.new, features = unique(top10$gene), assay='RNA')  + coord_flip()
-  p
-  ggsave(plot=p, filename=paste0(pro,'DotPlot_check_top10_markers_by_clusters.pdf'), device="pdf",width = 18,height = 24)
-  
-  top6 <- sce.markers %>% group_by(cluster) %>% top_n(6, avg_log2FC)
-  DoHeatmap(sce.new,top6$gene,size=3)
-  ggsave(paste0(pro,'DoHeatmap_check_top6_markers_by_clusters.pdf'),width = 18,height = 12)
-  p <- DotPlot(sce.new, features = unique(top6$gene), assay='RNA')  + coord_flip()
-  p
-  ggsave(plot=p, filename=paste0(pro,'DotPlot_check_top6_markers_by_clusters.pdf'),device="pdf",width = 18,height = 12)
-  
-  top3 <- sce.markers %>% group_by(cluster) %>% top_n(3, avg_log2FC)
-  DoHeatmap(sce.new,top3$gene,size=3)
-  ggsave(paste0(pro,'DoHeatmap_check_top3_markers_by_clusters.pdf'),width = 18,height = 12)
-  p <- DotPlot(sce.new, features = unique(top3$gene), assay='RNA')  + coord_flip()
-  p
-  ggsave(plot=p, filename=paste0(pro,'DotPlot_check_top3_markers_by_clusters.pdf'),device="pdf",width = 18,height = 12)
-  
-  # p <- FeaturePlot(sce.new, features = c('MS4A1', 'CD79A','PTPRC','PPBP', 'HBA1', 'HBA2', 'HBB'))
-  # p
-  # ggsave(plot=p, filename="check_background_genes.pdf",device="pdf",width = 18,height = 12)
-  
-}
+Idents(sce_plot) <- sce_plot$subcelltype
+DefaultAssay(sce_plot) <- "RNA"
+sce_markers <- FindAllMarkers(sce_plot, only.pos = TRUE, min.pct = 0.25, logfc.threshold = 0.25)
+save_marker_outputs(sce_plot, sce_markers, prefix = "cca")
+
+marker_genes <- c(
+  "MS4A1", "CD79B", "CD79A", "CD22", "IGHM", "IGHD", "IGLC3", "CD19", "CD38",
+  "SDC1", "TNFRSF17", "SLAMF7", "GPRC5D", "CD24", "GAS6", "GAS7", "IGF1", "CD27"
+)
+save_dotplot(sce_plot, marker_genes, "DotPlot_check_interested_markers_for_B_Plasma_cells.pdf")
+
+setwd(base_dir)

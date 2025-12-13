@@ -17,36 +17,40 @@
 #####################################################################################################
 
 rm(list = ls())
-options(stringsAsFactors = F)
+options(stringsAsFactors = FALSE)
+
+load_required_packages <- function(pkgs) {
+  missing_pkgs <- pkgs[!vapply(pkgs, requireNamespace, logical(1), quietly = TRUE)]
+  if (length(missing_pkgs) > 0) {
+    stop("Missing required packages: ", paste(missing_pkgs, collapse = ", "))
+  }
+  invisible(lapply(pkgs, function(pkg) {
+    suppressPackageStartupMessages(library(pkg, character.only = TRUE))
+  }))
+}
+
+validate_workdir <- function(path) {
+  if (!dir.exists(path)) {
+    stop("Working directory does not exist: ", path)
+  }
+  setwd(path)
+}
 
 # Set up the working directory here. ****** IMPORTANT ******
-setwd("~/data/singlecell/bgi/wangpengju/xuanyujing/results")
+validate_workdir("~/data/singlecell/bgi/wangpengju/xuanyujing/results")
 
-# Load the required R packages here.
-library(Seurat)
-library(tidyverse)
-library(ggplot2)
-library(sctransform) # https://satijalab.org/seurat/articles/sctransform_vignette.html
-library(glmGamPoi)
-library(DoubletFinder)
-library(patchwork)
-library(clusterProfiler)
-require(org.Hs.eg.db)
-# library(monocle3)
-# library(garnett)
-library(harmony)
-library(celldex)
-library(RColorBrewer)
-library(patchwork)
-library(future)
-library(parallel)
+load_required_packages(c(
+  "Seurat", "tidyverse", "ggplot2", "sctransform", "glmGamPoi", "DoubletFinder",
+  "patchwork", "clusterProfiler", "org.Hs.eg.db", "harmony", "celldex",
+  "RColorBrewer", "future", "parallel"
+))
 
-# Load custome functions to plot.
+# Load custom functions to plot.
 source("~/software/functions/custom_seurat_functions.R")
 source("~/software/functions/PropPlot.R")
 source("~/software/functions/SubClusterPropPlot.R")
 # Convert human gene symbols to mouse gene symbols.
-source("~/software/functions/convertHumanGeneList.R") 
+source("~/software/functions/convertHumanGeneList.R")
 
 # If error pops up, uncomment corresponding options here.
 options(future.globals.maxSize= 891289600)
@@ -62,49 +66,40 @@ options(future.seed=TRUE)
 ## https://swaruplab.bio.uci.edu/tutorial/integration/integration_tutorial.html
 
 #################### Step 1. Load data ####################
-# If data has been loaded previously, load previously saved Rds ojbect directly.
-if(file.exists("sceList.raw.Rds")) {
-  sceList <- readRDS("sceList.raw.Rds")
-  
-  samples = list.files('../datamatrix/')
-  samples
-  length(samples)
+samples <- list.files("../datamatrix/")
+if (length(samples) == 0) {
+  stop("No data matrices were found in ../datamatrix/")
 }
 
-# Otherwise, read data from data matrix for 10X genomics data
-if(!file.exists("sceList.raw.Rds")) {
-  
-  samples = list.files('../datamatrix/')
-  samples
-  length(samples)
-  
+# If data has been loaded previously, load previously saved Rds ojbect directly.
+if (file.exists("sceList.raw.Rds")) {
+  message("Loading cached raw Seurat objects from sceList.raw.Rds ...")
+  sceList <- readRDS("sceList.raw.Rds")
+} else {
+  message("Reading 10X genomics matrices for ", length(samples), " samples ...")
+
   ## set default filtering parameters to filter empty cells
-  sceList = lapply(samples,function(pro){ 
-    sce <- CreateSeuratObject(counts = Read10X(paste0("../datamatrix/", pro,"/")), 
-                              min.cells = 3, 
-                              min.features = 200,
-                              project = pro)
-    return(sce)
+  sceList <- lapply(samples, function(pro) {
+    CreateSeuratObject(
+      counts = Read10X(paste0("../datamatrix/", pro, "/")),
+      min.cells = 3,
+      min.features = 200,
+      project = pro
+    )
   })
-  
-  names(sceList)
-  
+
   group <- sub("^([^_]+_[^_]+)_.*", "\\1", samples)
-  group
-  
   group[10:12] <- "PBS"
-  
-  table(group)
-  
-  for(i in seq(length(sceList))) {
+
+  for (i in seq_along(sceList)) {
     sceList[[i]]@project.name <- samples[i]
-    sceList[[i]][['batch']] <- samples[i]
-    sceList[[i]][['sample']] <- samples[i]
-    sceList[[i]][['group']] <- group[i]
+    sceList[[i]][["batch"]] <- samples[i]
+    sceList[[i]][["sample"]] <- samples[i]
+    sceList[[i]][["group"]] <- group[i]
     levels(sceList[[i]]@active.ident) <- samples[i]
   }
-  
-  saveRDS(sceList,file="sceList.raw.Rds")
+
+  saveRDS(sceList, file = "sceList.raw.Rds")
 }
 
 #################### Step 2. Quality Control ####################
@@ -154,20 +149,10 @@ if(!file.exists("sceList.Rds")) {
     sceList[[i]][['filtered']] <- 'filtered'
   }
   
-  cl <- makeCluster(getOption('cl.cores', length(samples)))
-  sceList.merged <- list(merge(sceList.old[[1]], sceList[[1]]),
-                         merge(sceList.old[[2]], sceList[[2]]),
-                         merge(sceList.old[[3]], sceList[[3]]),
-                         merge(sceList.old[[4]], sceList[[4]]),
-                         merge(sceList.old[[5]], sceList[[5]]),
-                         merge(sceList.old[[6]], sceList[[6]]),
-                         merge(sceList.old[[7]], sceList[[7]]),
-                         merge(sceList.old[[8]], sceList[[8]]),
-                         merge(sceList.old[[9]], sceList[[9]]),
-                         merge(sceList.old[[10]], sceList[[10]]),
-                         merge(sceList.old[[11]], sceList[[11]]),
-                         merge(sceList.old[[12]], sceList[[12]])
-  )
+  cl <- makeCluster(getOption("cl.cores", length(samples)))
+  on.exit(stopCluster(cl))
+
+  sceList.merged <- mapply(merge, sceList.old, sceList, SIMPLIFY = FALSE)
   
   pList1 <- parLapply(cl, sceList.merged, VlnPlot, features=c('nFeature_RNA', 'nCount_RNA', 'percent.mito', 'percent.hb'), pt.size=0.1, split.by='filtered', split.plot=TRUE, combine=FALSE)
   pList2 <- parLapply(cl, sceList.merged, FeatureScatter, feature1='nCount_RNA', feature2='percent.mito', pt.size=0.1, group.by='filtered')
@@ -190,9 +175,7 @@ if(!file.exists("sceList.Rds")) {
   bafiltP
   ggsave(filename = "before_and_after_basic_filtering.pdf", plot = bafiltP, device="pdf", width = 24, height = 18)
   
-  stopCluster(cl)
-  
-  rm(list=c('sceList.old', 'sceList.merged'))
+  rm(list = c("sceList.old", "sceList.merged"))
   # saveRDS(sceList, file = "sceList.Rds")
 }
 
