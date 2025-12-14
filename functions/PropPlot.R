@@ -1,13 +1,32 @@
-PropPlot <- function(object, groupBy, colors = NULL) {
-  library(dplyr)
-  library(ggplot2)
+PropPlot <- function(object, groupBy, colors = NULL, legend_title = "Seurat Cluster") {
+  stopifnot("meta.data slot is empty" = !is.null(object@meta.data))
 
-  # Step 1. get data
+  if (!"celltype" %in% colnames(object@meta.data)) {
+    stop("`celltype` column is required in `object@meta.data` for PropPlot().")
+  }
+
+  if (rlang::as_name(rlang::enquo(groupBy)) %in% c("celltype", "")) {
+    stop("`groupBy` must refer to a metadata column other than `celltype`.")
+  }
+
+  if (!rlang::as_name(rlang::enquo(groupBy)) %in% colnames(object@meta.data)) {
+    stop(sprintf("`%s` was not found in `object@meta.data`.", rlang::as_name(rlang::enquo(groupBy))))
+  }
+
   plot_data <- object@meta.data %>%
     dplyr::select({{ groupBy }}, celltype) %>%
     dplyr::rename(group = {{ groupBy }})
 
-  # Step 2. base plot
+  base_theme <- theme(
+    axis.ticks.x    = element_blank(),
+    axis.ticks.y    = element_line(color = "black", lineend = "round"),
+    legend.position = "right",
+    axis.text.x     = element_text(size = 15, color = "black", family = "Arial", angle = 45, hjust = 1, vjust = 1),
+    axis.text.y     = element_text(size = 15, color = "black", family = "Arial"),
+    legend.text     = element_text(family = "Arial", size = 10, color = "black"),
+    legend.title    = element_text(family = "Arial", size = 13, color = "black")
+  )
+
   figure <- ggstatsplot::ggbarstats(
     data             = plot_data,
     x                = celltype,
@@ -27,27 +46,17 @@ PropPlot <- function(object, groupBy, colors = NULL) {
     perc.k        = 2,
     title         = "",
     xlab          = "",
-    legend.title  = "Seurat Cluster",
+    legend.title  = legend_title,
     ggtheme       = ggpubr::theme_pubclean()
-  ) +
-    theme(
-      axis.ticks.x = element_blank(),
-      axis.ticks.y = element_line(color = "black", lineend = "round"),
-      legend.position = "right",
-      axis.text.x = element_text(size = 15, color = "black", family = "Arial", angle=45, hjust=1,vjust=1),
-      axis.text.y = element_text(size = 15, color = "black", family = "Arial"),
-      legend.text  = element_text(family = "Arial", size = 10, color = "black"),
-      legend.title = element_text(family = "Arial", size = 13, color = "black")
-    )
+  ) + base_theme
 
-  # Step 2b. override colors manually if provided
   if (!is.null(colors)) {
+    if (length(colors) < length(unique(plot_data$celltype))) {
+      stop("`colors` must contain at least as many values as there are unique `celltype` entries.")
+    }
     figure <- figure + scale_fill_manual(values = colors)
   }
 
-  # Step 3. remove some elements (text labels from ggstatsplot)
-  figure <- gginnards::delete_layers(x = figure, match_type = "GeomText")
-
-  return(figure)
+  gginnards::delete_layers(x = figure, match_type = "GeomText")
 }
 

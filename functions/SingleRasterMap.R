@@ -1,7 +1,13 @@
-SingleRasterMap <- function (data, raster = TRUE, cell.order = NULL, feature.order = NULL, 
-                             colors = PurpleAndYellow(), disp.min = -2.5, disp.max = 2.5, 
-                             limits = NULL, group.by = NULL) 
-{
+SingleRasterMap <- function(data, raster = TRUE, cell.order = NULL, feature.order = NULL,
+                            colors = PurpleAndYellow(), disp.min = -2.5, disp.max = 2.5,
+                            limits = NULL, group.by = NULL) {
+  if (!is.matrix(data) && !is.data.frame(data)) {
+    stop("`data` must be a matrix or data.frame of expression values.")
+  }
+  if (!is.null(group.by) && length(group.by) != ncol(data)) {
+    stop("`group.by` length must match the number of cells (columns) in `data`.")
+  }
+
   data <- MinMax(data = data, min = disp.min, max = disp.max)
   data <- mefa4::Melt(x = t(x = data))
   colnames(x = data) <- c("Feature", "Cell", "Expression")
@@ -16,23 +22,23 @@ SingleRasterMap <- function (data, raster = TRUE, cell.order = NULL, feature.ord
   }
   limits <- limits %||% c(min(data$Expression), max(data$Expression))
   if (length(x = limits) != 2 || !is.numeric(x = limits)) {
-    stop("limits' must be a two-length numeric vector")
+    stop("`limits` must be a two-length numeric vector.")
   }
   my_geom <- ifelse(test = raster, yes = geom_raster, no = geom_tile)
-  xx <- plyr::ddply(data, ~Feature, summarise, k=mean(abs(Expression), na.rm = T))
-  xxxx <- plyr::arrange(xx, k)$Feature
-  #print(xx)
-  #print(xxxx)
-  data$Feature = factor(data$Feature, levels = xxxx, ordered = T)
-  plot <- ggplot(data = data) + my_geom(mapping = aes_string(x = "Cell", 
-                                                             y = "Feature", fill = "Expression")) + theme(axis.text.x = element_blank(), 
-                                                                                                          axis.ticks.x = element_blank()) + scale_fill_gradientn(limits = limits, 
-                                                                                                                                                                 colors = colors, na.value = "white") + labs(x = NULL, 
-                                                                                                                                                                                                             y = NULL, fill = group.by %iff% "Expression") + WhiteBackground() + 
+  feature_order <- plyr::ddply(data, ~Feature, summarise, k = mean(abs(Expression), na.rm = TRUE))
+  feature_order <- plyr::arrange(feature_order, k)$Feature
+  data$Feature <- factor(data$Feature, levels = feature_order, ordered = TRUE)
+  plot <- ggplot(data = data) + my_geom(mapping = aes_string(x = "Cell",
+                                                             y = "Feature", fill = "Expression")) + theme(axis.text.x = element_blank(),
+                                                                                                          axis.ticks.x = element_blank()) + scale_fill_gradientn(limits = limits,
+
+                                 colors = colors, na.value = "white") + labs(x = NULL,
+
+                                                                             y = NULL, fill = group.by %iff% "Expression") + WhiteBackground() +
     NoAxes(keep.text = TRUE)
   if (!is.null(x = group.by)) {
-    plot <- plot + geom_point(mapping = aes_string(x = "Cell", 
-                                                   y = "Feature", color = "Identity"), alpha = 0) + 
+    plot <- plot + geom_point(mapping = aes_string(x = "Cell",
+                                                   y = "Feature", color = "Identity"), alpha = 0) +
       guides(color = guide_legend(override.aes = list(alpha = 1)))
   }
   return(plot)

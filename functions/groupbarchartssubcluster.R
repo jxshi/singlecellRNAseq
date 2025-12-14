@@ -1,43 +1,43 @@
 groupbarchartssubcluster <- function(object, groupBy) {
-    # Step 1. get data
-    plot_data = object@meta.data %>% 
-      dplyr::select({{groupBy}}, subcelltype) %>% 
-      dplyr::rename(group = as.name(groupBy))
-    
-    # Combine "group" and "celltype" columns into a single column and count occurrences
-    result <- plot_data %>%
-      group_by(group, subcelltype) %>%
-      summarize(count = n()) %>%
-      ungroup() %>%
-      group_by(group) %>%
-      mutate(total_count = sum(count)) %>%
-      mutate(percentage = (count / total_count) * 100)
+    if (missing(groupBy)) {
+        stop("`groupBy` must be provided and refer to a metadata column.")
+    }
+    if (!"subcelltype" %in% colnames(object@meta.data)) {
+        stop("Metadata column `subcelltype` is required for groupbarchartssubcluster().")
+    }
+    if (!as.character(substitute(groupBy)) %in% colnames(object@meta.data)) {
+        stop("`groupBy` must exist in object@meta.data.")
+    }
 
-    # Rename the columns for clarity
+    plot_data <- object@meta.data %>%
+      dplyr::select({{groupBy}}, subcelltype) %>%
+      dplyr::rename(group = as.name(groupBy)) %>%
+      tidyr::drop_na()
+
+    result <- plot_data %>%
+      dplyr::group_by(group, subcelltype) %>%
+      dplyr::summarize(count = dplyr::n(), .groups = "drop_last") %>%
+      dplyr::mutate(total_count = sum(count), percentage = (count / total_count) * 100) %>%
+      dplyr::ungroup()
+
     colnames(result) <- c("group", "subcelltype", "count", "total_count", "percentage")
-    
-    # write the result data frame
-    write.table(result, "subcelltype_percentage_in_each_group.tsv", quote = F, sep="\t", row.names=F)
-    # Step 2. Plot
-    p <-  ggplot(data=result, aes(x = subcelltype, y= percentage, fill = group)) + 
-              geom_bar(stat = "identity", position = "dodge") +
-  
-              # Customize the plot
-              labs(
-                title = "Percentage of Cell Types in Each Group",
-                x = "Group",
-                y = "Percentage"
-              ) +
-      
-              theme_minimal() +
-     # Remove background and grid lines
-            theme(
-    		panel.background = element_blank(),
-    		panel.grid.major = element_blank(),
-    		panel.grid.minor = element_blank(),
-    		axis.line = element_line(color = "black")
-  		) +
-	    scale_y_continuous(expand = expansion(mult = c(0, 0.05)))
-    p <- p + ggsci::scale_fill_nejm()
-    p
+
+    write.table(result, "subcelltype_percentage_in_each_group.tsv", quote = FALSE, sep = "\t", row.names = FALSE)
+
+    ggplot(data = result, aes(x = subcelltype, y = percentage, fill = group)) +
+      geom_bar(stat = "identity", position = "dodge") +
+      labs(
+        title = "Percentage of Cell Types in Each Group",
+        x = "Group",
+        y = "Percentage"
+      ) +
+      theme_minimal() +
+      theme(
+        panel.background = element_blank(),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        axis.line = element_line(color = "black")
+      ) +
+      scale_y_continuous(expand = expansion(mult = c(0, 0.05))) +
+      ggsci::scale_fill_nejm()
 }
