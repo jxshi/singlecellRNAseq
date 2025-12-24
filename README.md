@@ -16,6 +16,8 @@ This repository provides a step-by-step R pipeline for analyzing single-cell RNA
   - `step10_GO_and_KEGG_analysis_for_subclusters.R`: Performs pathway enrichment (GO and KEGG) on identified subclusters.
   - `step11.color_graphs.R`: Generates publication-ready color palettes and visualizations for clusters and annotations.
   - `step12.Monocle2_for_Cd4_Tcells.R` / `step12.Monocle2_for_Cd8_Tcells.R`: Runs trajectory analysis with Monocle2 for CD4 or CD8 T cell subsets.
+- `step13-CellChat_cell_cell_crosstalk.R`: Infers cell-cell communication using CellChat and exports interaction tables/figures. The script now supports environment-variable overrides for grouping (`CELLCHAT_GROUPING`), species (`CELLCHAT_SPECIES`), minimum cells per group (`CELLCHAT_MIN_CELLS`), and parallel workers (`CELLCHAT_WORKERS`), and writes multiple visual summaries (group-size/strength circles, pathway heatmap, bubble plot of top pathways, and signaling role scatter).
+- `step14-CellChat_compare_groups.R`: Compares CellChat-inferred communication across multiple datasets/conditions (e.g., five groups in `sce$group`). It splits the Seurat object by dataset column, runs CellChat per group, merges results, exports per-group communication tables, pairwise interaction count/strength plots, multi-group bubble/heatmap summaries, and a centrality comparison. Defaults can be overridden via `CELLCHAT_DATASET_COLUMN`, `CELLCHAT_CELLTYPE_COLUMN`, `CELLCHAT_SPECIES`, `CELLCHAT_MIN_CELLS`, `CELLCHAT_PARALLEL`, `CELLCHAT_WORKERS`, and `CELLCHAT_TOP_PATHWAYS`.
 - `functions/`: Reusable R utilities sourced by the pipeline (custom Seurat plotting helpers, gene symbol conversions, KEGG annotations, cell cycle genes, etc.).
 - `README.md`: This document.
 
