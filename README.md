@@ -16,6 +16,7 @@ This repository provides a step-by-step R pipeline for analyzing single-cell RNA
   - `step10_GO_and_KEGG_analysis_for_subclusters.R`: Performs pathway enrichment (GO and KEGG) on identified subclusters.
   - `step11.color_graphs.R`: Generates publication-ready color palettes and visualizations for clusters and annotations.
   - `step12.Monocle2_for_Cd4_Tcells.R` / `step12.Monocle2_for_Cd8_Tcells.R`: Runs trajectory analysis with Monocle2 for CD4 or CD8 T cell subsets.
+  - `step13-CellChat_cell_cell_crosstalk.R`: Infers cell-cell communication using CellChat and exports interaction tables/figures.
 - `functions/`: Reusable R utilities sourced by the pipeline (custom Seurat plotting helpers, gene symbol conversions, KEGG annotations, cell cycle genes, etc.).
 - `README.md`: This document.
 
